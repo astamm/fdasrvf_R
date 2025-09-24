@@ -59,18 +59,19 @@
 #' @examples
 #' out <- multivariate_karcher_mean(beta[, , 1, 1:2], maxit = 2)
 #' # note: use more functions, small for speed
-multivariate_karcher_mean <- function(beta,
-                                      mode = "O",
-                                      alignment = TRUE,
-                                      rotation = FALSE,
-                                      scale = FALSE,
-                                      lambda = 0.0,
-                                      maxit = 20L,
-                                      ms = c("mean", "median"),
-                                      exact_medoid = FALSE,
-                                      ncores = 1L,
-                                      verbose = FALSE)
-{
+multivariate_karcher_mean <- function(
+  beta,
+  mode = "O",
+  alignment = TRUE,
+  rotation = FALSE,
+  scale = FALSE,
+  lambda = 0.0,
+  maxit = 20L,
+  ms = c("mean", "median"),
+  exact_medoid = FALSE,
+  ncores = 1L,
+  verbose = FALSE
+) {
   if (mode == "C" && !scale)
     cli::cli_abort(
       "Closed curves are currently handled only on the Hilbert
@@ -95,10 +96,9 @@ multivariate_karcher_mean <- function(beta,
   }
 
   # Computes SRVFs
-  srvfs <- lapply(1:N, \(n) curve_to_srvf(beta[, , n], scale = scale))
+  srvfs <- lapply(1:N, \(n) curve_to_srvf(beta[,, n], scale = scale))
   q <- array(dim = c(L, M, N))
-  for (n in 1:N)
-    q[, , n] <- srvfs[[n]]$q
+  for (n in 1:N) q[,, n] <- srvfs[[n]]$q
 
   # Find medoid
   if (exact_medoid) {
@@ -117,30 +117,32 @@ multivariate_karcher_mean <- function(beta,
     cl <- parallel::makeCluster(ncores)
     doParallel::registerDoParallel(cl)
     on.exit(parallel::stopCluster(cl))
-  } else
-    foreach::registerDoSEQ()
+  } else foreach::registerDoSEQ()
 
   if (!exact_medoid) {
     qmean <- rowMeans(q, dims = 2)
     n <- NULL
-    dists <- foreach::foreach(n = 1:N,
-                              .combine = "c",
-                              .packages = 'fdasrvf') %dopar% {
-                                find_rotation_seed_unique(
-                                  qmean,
-                                  srvfs[[n]]$q,
-                                  mode = mode,
-                                  alignment = alignment,
-                                  rotation = rotation,
-                                  scale = scale
-                                )$d
-                              }
+    dists <- foreach::foreach(
+      n = 1:N,
+      .combine = "c",
+      .packages = 'fdasrvf'
+    ) %dopar%
+      {
+        find_rotation_seed_unique(
+          qmean,
+          srvfs[[n]]$q,
+          mode = mode,
+          alignment = alignment,
+          rotation = rotation,
+          scale = scale
+        )$d
+      }
   }
 
   medoid_idx <- which.min(dists)
 
   # Initialize mean as the medoid
-  qmean <- q[, , medoid_idx]
+  qmean <- q[,, medoid_idx]
   delta <- 0.5
   tolv <- 1e-04
   told <- 5 * 0.001
@@ -150,34 +152,37 @@ multivariate_karcher_mean <- function(beta,
   sumd <- rep(0, maxit + 1)
   sumd[1] <- Inf
 
-  while (itr < maxit) {
-    if (verbose)
-      cli::cli_alert_info("Iteration {itr}/{maxit}...")
+  print(itr)
+  print(maxit)
 
-    if (mode == "O" || !scale)
-      basis <- NULL
-    else
+  while (itr < maxit) {
+    if (verbose) cli::cli_alert_info("Iteration {itr}/{maxit}...")
+
+    if (mode == "O" || !scale) basis <- NULL else
       basis <- find_basis_normal(qmean)
 
-    alignment_step <- foreach::foreach(n = 1:N,
-                                       .combine = cbind,
-                                       .packages = "fdasrvf") %dopar% {
-                                         out <- find_rotation_seed_unique(
-                                           q1 = qmean,
-                                           q2 = q[, , n],
-                                           mode = mode,
-                                           alignment = alignment,
-                                           rotation = rotation,
-                                           scale = scale,
-                                           lambda = lambda
-                                         )
-                                         list(
-                                           d = out$d,
-                                           q2n = out$q2best,
-                                           gam = out$gambest,
-                                           R = out$Rbest
-                                         )
-                                       }
+    alignment_step <- foreach::foreach(
+      n = 1:N,
+      .combine = cbind,
+      .packages = "fdasrvf"
+    ) %dopar%
+      {
+        out <- find_rotation_seed_unique(
+          q1 = qmean,
+          q2 = q[,, n],
+          mode = mode,
+          alignment = alignment,
+          rotation = rotation,
+          scale = scale,
+          lambda = lambda
+        )
+        list(
+          d = out$d,
+          q2n = out$q2best,
+          gam = out$gambest,
+          R = out$Rbest
+        )
+      }
 
     d <- unlist(alignment_step[1, ])
     dim(d) <- N
@@ -204,9 +209,11 @@ multivariate_karcher_mean <- function(beta,
     normv <- sqrt(innerprod_q2(out$vbar, out$vbar))
     normbar[itr] <- normv
 
-    if (sumd[itr] - sumd[itr + 1] < 0 ||
+    if (
+      sumd[itr] - sumd[itr + 1] < 0 ||
         normv < tolv ||
-        abs(sumd[itr + 1] - sumd[itr]) < told)
+        abs(sumd[itr + 1] - sumd[itr]) < told
+    )
       break
 
     qn <- qt
@@ -225,10 +232,9 @@ multivariate_karcher_mean <- function(beta,
   betan <- array(dim = c(L, M, N))
   for (n in 1:N) {
     scl <- 1
-    if (scale)
-      scl <- qmean_norm / len_q[n]
-    betan[, , n] <- q_to_curve(qn[, , n], scale = scl)
-    betan[, , n] <- betan[, , n] - calculatecentroid(betan[, , n])
+    if (scale) scl <- qmean_norm / len_q[n]
+    betan[,, n] <- q_to_curve(qn[,, n], scale = scl)
+    betan[,, n] <- betan[,, n] - calculatecentroid(betan[,, n])
   }
 
   type <- ifelse(ms == "median", "Karcher Median", "Karcher Mean")
